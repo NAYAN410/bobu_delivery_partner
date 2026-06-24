@@ -1,0 +1,51 @@
+name: iOS-ipa-build2
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    name: 🎉 Unsigned iOS Build
+    runs-on: macos-14
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          architecture: x64
+
+      - name: Flutter Pub Get
+        run: flutter pub get
+
+      - name: Create .env File
+        run: |
+          echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env
+          echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env
+
+      - name: Pod Repo Update
+        run: pod repo update
+        working-directory: ios
+
+      - name: Build iOS App
+        run: flutter build ios --release --no-codesign
+
+      - name: Create IPA Structure
+        run: |
+          mkdir -p build/ios/iphoneos/Payload
+          cp -R build/ios/iphoneos/Runner.app build/ios/iphoneos/Payload/
+
+      - name: Remove macOS Metadata
+        run: find build/ios/iphoneos -name ".DS_Store" -delete
+
+      - name: Create IPA File
+        run: |
+          cd build/ios/iphoneos
+          zip -r FlutterIpaExport.ipa Payload
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-ios-ipa
+          path: build/ios/iphoneos/FlutterIpaExport.ipa
